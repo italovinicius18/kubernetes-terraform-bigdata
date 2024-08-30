@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: airflow
+  namespace: argocd
+  # finalizers:
+#   - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: ${REPO_URL}
+    targetRevision: ${REPO_BRANCH}
+    path: ${REPO_PATH}
+    directory:
+      recursive: true
+    helm:
+      parameters:
+        - name: "airflowVersion"
+          value: ${AIRFLOW_VERSION}
+        - name: "defaultAirflowTag"
+          value: ${AIRFLOW_TAG}
+        - name: "defaultAirflowRepository"
+          value: ${AIRFLOW_REPOSITORY}
+        - name: "dags.gitSync.repo"
+          value: ${DAG_SYNC_REPO}
+        - name: "dags.gitSync.branch"
+          value: ${DAG_SYNC_REPO_BRANCH}
+        - name: "dags.gitSync.subPath"
+          value: ${DAG_SYNC_REPO_SUB_PATH}
+        - name: "postgresql.enabled"
+          value: "${K8S_POSTGRES_ENABLED}"
+        - name: "webserver.service.type"
+          value: ${AIRFLOW_WEBSERVER_SERVICE_TYPE}
+        - name: "data.metadataSecretName"
+          value: ${EXTERNAL_POSTGRES_CREDENTIALS_SECRET}
+      values: "env:\n  - name: AIRFLOW__LOGGING__REMOTE_LOGGING\n    value: \"TRUE\"\n  - name: AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER\n    value: \"${AIRFLOW_LOGGING_BUCKET_PATH}\"\n  - name: AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID\n    value: \"aws_default\"\n  - name: AIRFLOW_AWS_DEFAULT_REGION\n    value: ${AWS_DEFAULT_REGION}\n  - name: AIRFLOW__WEBSERVER__WARN_DEPLOYMENT_EXPOSURE\n    value: \"False\"\n  - name: AIRFLOW_CONN_KUBERNETES_DEFAULT\n    value: '${K8S_CLUSTER_AIRFLOW_CONNECTION}'\n  - name: AIRFLOW_CONN_AWS_DEFAULT\n    value: '${AWS_AIRFLOW_CONNECTION}'\nworkers:\n  serviceAccount:\n    name: \"airflow-worker\"\n    annotations: \n      \"eks.amazonaws.com/role-arn\": ${AIRFLOW_ROLE_ARN}\nwebserver:\n  serviceAccount:\n    name: \"airflow-webserver\"\n    annotations: \n      \"eks.amazonaws.com/role-arn\": ${AIRFLOW_ROLE_ARN}\n  defaultUser:\n    enabled: true\n    role: Admin\n    username: ${AIRFLOW_USERNAME}\n    email: admin@example.com\n    firstName: admin\n    lastName: admin\n    password: ${AIRFLOW_PASSWORD}\ntriggerer:\n  serviceAccount:\n    name: \"airflow-triggerer\"\n    annotations: \n      \"eks.amazonaws.com/role-arn\": ${AIRFLOW_ROLE_ARN}\n"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: orchestrator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

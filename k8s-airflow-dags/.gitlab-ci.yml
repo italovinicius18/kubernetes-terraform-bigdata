@@ -1,0 +1,61 @@
+variables:
+  AWS_DEFAULT_REGION: "us-east-1"
+  DOCKER_TLS_CERTDIR: ""
+  
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      variables:
+        AWS_ACCOUNT_ID: "${AWS_ACCOUNT_ID_PROD}"
+        AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID_PROD}"
+        AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY_PROD}"
+        SPARK_ACCESS_KEY_ID: "${SPARK_ACCESS_KEY_ID_PROD}"
+        SPARK_SECRET_ACCESS_KEY: "${SPARK_SECRET_ACCESS_KEY_PROD}"
+        BUCKET: "eks-airflow"
+        IMAGE_NAME: "spark"
+        TAG_LATEST: "$AWS_ACCOUNT_ID.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_NAME}:latest"
+        TAG_COMMIT: "$AWS_ACCOUNT_ID.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_NAME}:$CI_COMMIT_SHORT_SHA"
+      when: always
+    - if: $CI_COMMIT_BRANCH == "dev"
+      variables:
+        AWS_ACCOUNT_ID: "${AWS_ACCOUNT_ID_DEV}"
+        AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID_DEV}"
+        AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY_DEV}"
+        SPARK_ACCESS_KEY_ID: "${SPARK_ACCESS_KEY_ID_DEV}"
+        SPARK_SECRET_ACCESS_KEY: "${SPARK_SECRET_ACCESS_KEY_DEV}"
+        BUCKET: "eks-airflow-dev"
+        IMAGE_NAME: "spark-dev"
+        TAG_LATEST: "$AWS_ACCOUNT_ID.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_NAME}:latest"
+        TAG_COMMIT: "$AWS_ACCOUNT_ID.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_NAME}:$CI_COMMIT_SHORT_SHA"
+      when: always
+
+stages:
+  - copy_scripts
+  - build_ecr
+
+
+copy_scripts:
+  stage: copy_scripts
+  image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
+  when: on_success
+  script:
+    - aws s3 sync ./scripts s3://$BUCKET/scripts
+
+build_ecr:
+  stage: build_ecr
+  image: docker:stable
+  services:
+    - docker:dind
+  when: manual
+  before_script:
+    # Instala o AWS CLI
+    - apk add --no-cache aws-cli
+  script:
+    - cd ./docker
+    - aws ecr describe-repositories --repository-names ${IMAGE_NAME} || aws ecr create-repository --repository-name ${IMAGE_NAME}
+    - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
+    - docker pull $TAG_LATEST || true
+    - docker build --cache-from $TAG_LATEST -t $TAG_COMMIT -t $TAG_LATEST .
+    - docker push $TAG_COMMIT
+    - docker push $TAG_LATEST

@@ -1,0 +1,69 @@
+apiVersion: "sparkoperator.k8s.io/v1beta2"
+kind: SparkApplication
+metadata:
+  name: 'spark-op-{{  macros.datetime.now().strftime("%Y-%m-%d-%H-%M-%S") }}'
+  namespace: processing
+spec:
+  volumes:
+    - name: ivy
+      emptyDir: {}
+  sparkConf:
+    extraJavaOptions: -Dcom.amazonaws.services.s3.enableV4=true
+    # spark.jars.packages: "org.apache.hadoop:hadoop-aws:3.4.0"
+    spark.driver.extraJavaOptions: "-Divy.cache.dir=/tmp -Divy.home=/tmp"
+    spark.kubernetes.allocation.batch.size: "10"
+    spark.sql.debug.maxToStringFields: "2000"
+    # spark.sql.legacy.parquet.int96RebaseModeInWrite: "LEGACY"
+    spark.sql.parquet.int96RebaseModeInWrite: "LEGACY"
+  hadoopConf:
+    "fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    "fs.s3a.path.style.access": "True"
+    "fs.s3a.connection.ssl.enabled": "True"
+  timeToLiveSeconds: 600
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: 963703171916.dkr.ecr.us-east-1.amazonaws.com/spark-dev
+  imagePullPolicy: Always
+  mainApplicationFile: s3a://eks-airflow-dev/scripts/spark-teste-pesado.py
+  sparkVersion: "3.3.2"
+  restartPolicy:
+    type: Never
+  driver:
+    envSecretKeyRefs:
+      AWS_ACCESS_KEY_ID:
+        name: aws-credentials
+        key: aws_access_key_id
+      AWS_SECRET_ACCESS_KEY:
+        name: aws-credentials
+        key: aws_secret_access_key
+    # cores: 1
+    # coreLimit: "1200m"
+    # memory: "2g"
+    labels:
+      version: 3.3.2
+    serviceAccount: spark
+    volumeMounts:
+      - name: ivy
+        mountPath: /tmp
+  executor:
+    envSecretKeyRefs:
+      AWS_ACCESS_KEY_ID:
+        name: aws-credentials
+        key: aws_access_key_id
+      AWS_SECRET_ACCESS_KEY:
+        name: aws-credentials
+        key: aws_secret_access_key
+    # cores: 1
+    # instances: 2
+    # memory: "3g"
+    labels:
+      version: 3.3.2
+    volumeMounts:
+      - name: ivy
+        mountPath: /tmp
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "jobs"
+      effect: "NoSchedule"

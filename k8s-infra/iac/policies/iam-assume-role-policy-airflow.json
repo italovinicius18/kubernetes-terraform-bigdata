@@ -1,0 +1,28 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "${EKS_OIDC_PROVIDER_ARN}"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringEquals": {
+                    "${EKS_OIDC_ISSUER_URL_SUB}": [
+                        "system:serviceaccount:orchestrator:airflow-worker",
+                        "system:serviceaccount:orchestrator:airflow-webserver"
+                    ],
+                    "${EKS_OIDC_ISSUER_URL_AUD}": "sts.amazonaws.com"
+                }
+            }
+        },
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "${AIRFLOW_ROLE_ARN}"
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}

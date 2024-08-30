@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: orchestrator
+  name: airflow-ingress
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/load-balancer-name: lb-${TF_WORKSPACE}
+    alb.ingress.kubernetes.io/group.name: lb-${TF_WORKSPACE}
+    alb.ingress.kubernetes.io/group.order: "1"
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/tags: Environment=${TF_WORKSPACE}
+    alb.ingress.kubernetes.io/subnets: eks-${TF_WORKSPACE}-public-1, eks-${TF_WORKSPACE}-public-2
+    # alb.ingress.kubernetes.io/security-groups: "alb_sg_eks_${TF_WORKSPACE}"
+    # alb.ingress.kubernetes.io/inbound-cidrs: "192.168.0.0/22,172.31.0.0/16,172.20.0.0/16,172.30.0.0/16"
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: airflow-webserver
+              port:
+                number: 80

@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: spark-operator
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ${REPO_URL}
+    targetRevision: ${REPO_BRANCH}
+    path: ${REPO_PATH}
+    directory:
+      recursive: true
+    helm:
+      parameters:
+        - name: image.tag
+          value: ${SPARK_OPERATOR_TAG}
+        - name: podMonitor.enable
+          value: 'false'
+        - name: webhook.enable
+          value: 'true'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: processing
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
